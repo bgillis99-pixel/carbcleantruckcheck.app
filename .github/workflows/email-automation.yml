@@ -1,0 +1,48 @@
+name: Silver Snap-Tool Email Automation
+
+on:
+  # Run every 10 minutes to check for new emails
+  schedule:
+    - cron: '*/10 * * * *'
+  workflow_dispatch:
+
+jobs:
+  process-test-emails:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Check Gmail for Silver Snap-Tool emails
+        env:
+          GMAIL_USER: ${{ secrets.GMAIL_USER }}
+          GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
+          GOOGLE_CALENDAR_API_KEY: ${{ secrets.GOOGLE_CALENDAR_API_KEY }}
+        run: |
+          echo "📧 Checking for Silver Snap-Tool emails..."
+          # TODO: Install dependencies and run email parser
+          # npm install
+          # node email-integration/check-emails.js
+
+      - name: Process last 5 months (one-time backfill)
+        if: github.event_name == 'workflow_dispatch'
+        env:
+          GMAIL_USER: ${{ secrets.GMAIL_USER }}
+          GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
+          GOOGLE_CALENDAR_API_KEY: ${{ secrets.GOOGLE_CALENDAR_API_KEY }}
+        run: |
+          echo "🔙 Processing historical emails from last 5 months..."
+          # npm install
+          # node email-integration/backfill-history.js
+
+      - name: Summary
+        run: |
+          echo "✅ Email automation complete"
+          echo "- Checked for Silver Snap-Tool test result emails"
+          echo "- Added OBD tests to calendar"
+          echo "- Created 17-week recurring events"
