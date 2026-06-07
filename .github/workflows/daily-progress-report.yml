@@ -1,0 +1,82 @@
+name: Daily NorCal CARB Progress Report
+
+on:
+  schedule:
+    # Daily at 6 PM Pacific (1 AM UTC next day) - End of business day
+    - cron: '0 1 * * *'
+  workflow_dispatch:
+
+jobs:
+  generate-daily-report:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # Get all history for analysis
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Generate Progress Report
+        id: report
+        run: |
+          echo "## NorCal CARB Mobile - Daily Progress Report" > report.md
+          echo "**Date:** $(date '+%B %d, %Y')" >> report.md
+          echo "" >> report.md
+
+          echo "### 📊 Repository Activity" >> report.md
+          echo "" >> report.md
+
+          # Commits today
+          COMMITS=$(git log --since="24 hours ago" --pretty=format:"- %s (%an)" --no-merges)
+          if [ -z "$COMMITS" ]; then
+            echo "- No commits today" >> report.md
+          else
+            echo "$COMMITS" >> report.md
+          fi
+          echo "" >> report.md
+
+          # Files changed
+          echo "### 📝 Files Modified Today" >> report.md
+          FILES=$(git diff --name-only HEAD@{24.hours.ago} HEAD 2>/dev/null || echo "No changes")
+          if [ "$FILES" = "No changes" ]; then
+            echo "- No files modified" >> report.md
+          else
+            echo "$FILES" | sed 's/^/- /' >> report.md
+          fi
+          echo "" >> report.md
+
+          # Active branches
+          echo "### 🌿 Active Branches" >> report.md
+          git branch -r --format='- %(refname:short)' | grep -v HEAD >> report.md
+          echo "" >> report.md
+
+          echo "### 🎯 Key Metrics" >> report.md
+          echo "- Total commits this week: $(git log --since='7 days ago' --oneline | wc -l)" >> report.md
+          echo "- Contributors today: $(git log --since='24 hours ago' --format='%an' | sort -u | wc -l)" >> report.md
+          echo "" >> report.md
+
+          cat report.md
+
+      - name: Send to Slack
+        if: env.SLACK_WEBHOOK_URL != ''
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+        run: |
+          REPORT=$(cat report.md)
+          curl -X POST $SLACK_WEBHOOK_URL \
+            -H 'Content-Type: application/json' \
+            -d "{\"text\": \"$REPORT\"}"
+
+      - name: Commit Progress Log
+        run: |
+          mkdir -p .progress-reports
+          cp report.md .progress-reports/$(date '+%Y-%m-%d').md
+          git config user.name "NorCal CARB Bot"
+          git config user.email "bot@norcalcarb.com"
+          git add .progress-reports/
+          git commit -m "Daily progress report - $(date '+%Y-%m-%d')" || echo "No changes to commit"
+          git push || echo "Push failed - may need permissions"
